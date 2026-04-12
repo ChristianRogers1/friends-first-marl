@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cooperative-pretraining"
+version = "0.1.0"
+description = "Barebones experiment environment for cooperative pretraining under adversarial pressure."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "gymnasium>=0.29",
+  "numpy>=1.24",
+  "pettingzoo>=1.25",
+  "pygame>=2.6",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
