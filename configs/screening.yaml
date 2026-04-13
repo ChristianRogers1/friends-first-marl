@@ -1,0 +1,45 @@
+# Screening stage configuration
+# Tests pretraining ratios: 0.1, 0.25, 0.5, 0.75
+# 5 seeds per ratio to find best configuration
+
+env:
+  num_attributes: 3
+  num_values: 5
+  num_distractors: 2
+  vocab_size: 10
+  msg_length: 3
+  cooperative_reward_weight: 1.0
+  leakage_penalty_weight: 0.5
+
+agent:
+  hidden_dim: 128
+  comm_hidden_dim: 64
+  lr_actor: 0.001
+  lr_critic: 0.001
+  gamma: 0.95
+  tau: 0.01
+  gumbel_temperature: 1.0
+
+training:
+  total_episodes: 50000
+  batch_size: 256
+  buffer_capacity: 100000
+  update_every: 4
+  eval_every: 500
+  eval_episodes: 100
+  checkpoint_every: 5000
+  noise_scale: 0.1
+  noise_decay: 0.9999
+  min_noise: 0.01
+
+screening:
+  pretraining_ratios: [0.1, 0.25, 0.5, 0.75]
+  seeds_per_ratio: 5
+
+experiment:
+  seed: 42
+  num_seeds: 5
+  device: "cpu"
+  log_dir: "runs/screening"
+  checkpoint_dir: "checkpoints/screening"
+  results_dir: "results/screening"

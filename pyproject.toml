@@ -1,22 +1,31 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "cooperative-pretraining"
+name = "cooperative-pretraining-marl"
 version = "0.1.0"
-description = "Barebones experiment environment for cooperative pretraining under adversarial pressure."
-readme = "README.md"
-requires-python = ">=3.10"
+description = "Cooperative Pretraining for Robust Emergent Communication Under Adversarial Pressure"
+authors = [
+    {name = "Christian A. Rogers", email = "Christian.Rogers@utah.edu"},
+    {name = "Nathan Jensen", email = "u1493643@utah.edu"},
+]
+requires-python = ">=3.9"
 dependencies = [
-  "gymnasium>=0.29",
-  "numpy>=1.24",
-  "pettingzoo>=1.25",
-  "pygame>=2.6",
+    "torch>=2.0.0",
+    "numpy>=1.24.0",
+    "pettingzoo>=1.24.0",
+    "gymnasium>=0.29.0",
+    "matplotlib>=3.7.0",
+    "tensorboard>=2.14.0",
+    "pyyaml>=6.0",
+    "tqdm>=4.65.0",
+    "scipy>=1.10.0",
 ]
 
-[tool.setuptools]
-package-dir = {"" = "src"}
+[project.optional-dependencies]
+dev = ["pytest>=7.4.0"]
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["."]
+include = ["src*"]
