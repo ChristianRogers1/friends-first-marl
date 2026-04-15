@@ -86,11 +86,18 @@ class MADDPGAgent:
         # Target networks
         self.target_actor = copy.deepcopy(self.actor)
         self.target_critic = copy.deepcopy(self.critic)
+        self.target_comm_module = (
+            copy.deepcopy(self.comm_module) if self.comm_module is not None
+            else None
+        )
 
-        # Optimizers
-        actor_params = list(self.actor.parameters())
+        # Optimizers -- only include comm_module params for speaker;
+        # the speaker's Actor is unused for action selection so we
+        # exclude it to avoid ghost gradients.
         if self.comm_module is not None:
-            actor_params += list(self.comm_module.parameters())
+            actor_params = list(self.comm_module.parameters())
+        else:
+            actor_params = list(self.actor.parameters())
 
         self.actor_optimizer = torch.optim.Adam(actor_params, lr=lr_actor)
         self.critic_optimizer = torch.optim.Adam(
@@ -164,10 +171,9 @@ class MADDPGAgent:
 
     def get_target_action(self, obs: torch.Tensor) -> torch.Tensor:
         """Get action from target actor (for critic target computation)."""
-        if self.comm_module is not None:
-            # Use comm module with hard discretization for target
+        if self.target_comm_module is not None:
             with torch.no_grad():
-                message_onehot, _ = self.comm_module(obs, hard=True)
+                message_onehot, _ = self.target_comm_module(obs, hard=True)
             return message_onehot
         return self.target_actor(obs)
 
@@ -239,6 +245,14 @@ class MADDPGAgent:
             target_param.data.copy_(
                 self.tau * param.data + (1 - self.tau) * target_param.data
             )
+        if self.comm_module is not None and self.target_comm_module is not None:
+            for target_param, param in zip(
+                self.target_comm_module.parameters(),
+                self.comm_module.parameters(),
+            ):
+                target_param.data.copy_(
+                    self.tau * param.data + (1 - self.tau) * target_param.data
+                )
 
     def save(self, path: str):
         """Save agent state to disk."""
@@ -252,6 +266,8 @@ class MADDPGAgent:
         }
         if self.comm_module is not None:
             state["comm_module"] = self.comm_module.state_dict()
+        if self.target_comm_module is not None:
+            state["target_comm_module"] = self.target_comm_module.state_dict()
         torch.save(state, path)
 
     def load(self, path: str):
@@ -265,6 +281,8 @@ class MADDPGAgent:
         self.critic_optimizer.load_state_dict(state["critic_optimizer"])
         if self.comm_module is not None and "comm_module" in state:
             self.comm_module.load_state_dict(state["comm_module"])
+        if self.target_comm_module is not None and "target_comm_module" in state:
+            self.target_comm_module.load_state_dict(state["target_comm_module"])
 
     def train_mode(self):
         """Set networks to training mode."""
@@ -272,6 +290,11 @@ class MADDPGAgent:
         self.critic.train()
         if self.comm_module is not None:
             self.comm_module.train()
+        # Target networks stay in eval mode
+        self.target_actor.eval()
+        self.target_critic.eval()
+        if self.target_comm_module is not None:
+            self.target_comm_module.eval()
 
     def eval_mode(self):
         """Set networks to evaluation mode."""

@@ -1,12 +1,12 @@
 #!/bin/bash
-#SBATCH --account=dbrown
-#SBATCH --partition=dbrown-gpu-grn
-#SBATCH --qos=dbrown-gpu-grn
-#SBATCH --time=23:59:59
+#SBATCH --account=rai
+#SBATCH --partition=rai-gpu-grn
+#SBATCH --qos=rai-gpu-grn
+#SBATCH --time=20:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:2
 #SBATCH -o slurmjob-%j.out-%N
 #SBATCH -e slurmjob-%j.err-%N
 
@@ -14,15 +14,22 @@
 # ============================================================
 #  Full experimental pipeline SLURM job
 #
+#  Supports multi-GPU parallelism: if you request N GPUs with
+#  --gres=gpu:N, the pipeline distributes independent training
+#  runs across all N GPUs automatically.
+#
 #  Runs the entire screen-and-confirm procedure:
 #    1. Screening  -- 4 ratios x 5 seeds  = 20 training runs
-#    2. Confirmation -- best ratio x 12 seeds + baseline x 12 seeds = 24 runs
+#    2. Confirmation -- best ratio x 12 seeds + baseline x 12 = 24 runs
 #    3. Evaluation -- H1/H2/H3 metrics on all confirmation agents
 #    4. Analysis   -- Generate figures with matplotlib
 #
-#  Usage:
+#  Usage (single GPU, sequential):
 #    sbatch slurm/run_pipeline.sh
-#    sbatch --export=TOTAL_EPISODES=50000 slurm/run_pipeline.sh
+#
+#  Usage (multi-GPU, parallel):
+#    sbatch --gres=gpu:4 slurm/run_pipeline.sh
+#    sbatch --gres=gpu:2 --export=TOTAL_EPISODES=10000 slurm/run_pipeline.sh
 # ============================================================
 
 echo "============================================"
@@ -34,12 +41,16 @@ echo "============================================"
 
 # ---------- tunables (override via --export) ----------
 TOTAL_EPISODES=${TOTAL_EPISODES:-50000}
-CONFIG=${CONFIG:-configs/default.yaml}
+CONFIG=${CONFIG:-configs/decoupled_sweep.yaml}
 OUTPUT_DIR=${OUTPUT_DIR:-results}
+
+# Auto-detect GPU count from SLURM allocation (0 = auto-detect in Python)
+NUM_GPUS=${NUM_GPUS:-0}
 
 echo "TOTAL_EPISODES = $TOTAL_EPISODES"
 echo "CONFIG         = $CONFIG"
 echo "OUTPUT_DIR     = $OUTPUT_DIR"
+echo "NUM_GPUS       = $NUM_GPUS  (0 = auto-detect)"
 
 # ---------- scratch directory ----------
 SCRDIR=/scratch/general/vast/$USER/$SLURM_JOB_ID
@@ -74,8 +85,12 @@ print(f"CUDA     : {torch.version.cuda}")
 if not torch.cuda.is_available():
     print("ERROR: CUDA not available, aborting job")
     sys.exit(1)
-print(f"GPU      : {torch.cuda.get_device_name(0)}")
-print(f"VRAM     : {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
+n = torch.cuda.device_count()
+print(f"GPUs     : {n}")
+for i in range(n):
+    name = torch.cuda.get_device_name(i)
+    vram = torch.cuda.get_device_properties(i).total_memory / 1e9
+    print(f"  cuda:{i} : {name}  ({vram:.1f} GB)")
 PYCHECK
 
 if [ $? -ne 0 ]; then
@@ -94,6 +109,7 @@ echo "============================================"
 python scripts/run_full_pipeline.py \
     --config "$CONFIG" \
     --device cuda \
+    --num-gpus "$NUM_GPUS" \
     --total-episodes "$TOTAL_EPISODES" \
     --output-dir "$OUTPUT_DIR"
 

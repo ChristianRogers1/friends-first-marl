@@ -1,10 +1,10 @@
 # Cooperative Pretraining for Robust Emergent Communication Under Adversarial Pressure
 
-**CS 6955 - Advanced AI, Spring 2025**
+**CS 6955 - Advanced AI, Spring 2026**
 
 Christian A. Rogers (Christian.Rogers@utah.edu) and Nathan Jensen (u1493643@utah.edu)
 
-Department of Computer Science, University of Utah
+Kahlert School of Computer Science, University of Utah
 
 ---
 
@@ -53,7 +53,7 @@ A custom multi-agent referential communication game inspired by PettingZoo's `si
 **Reward Structure:**
 
 - *Phase 1 (cooperative):* `speaker_reward = listener_reward = listener_correct`
-- *Phase 2 (adversarial):* `speaker_reward = listener_reward = listener_correct - 0.5 * adversary_accuracy`; `adversary_reward = adversary_accuracy`
+- *Phase 2 (adversarial):* `speaker_reward = listener_reward = listener_correct - 1.0 * adversary_accuracy`; `adversary_reward = adversary_accuracy`
 
 **Training Phases:**
 
@@ -326,4 +326,4 @@ Two sub-metrics:
 
 ## License
 
-This project was developed as coursework for CS 6955 at the University of Utah.
+This project was developed as coursework for CS 6955 and CS 5955 at the University of Utah.

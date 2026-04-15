@@ -8,7 +8,7 @@ env:
   vocab_size: 10
   msg_length: 3
   cooperative_reward_weight: 1.0
-  leakage_penalty_weight: 0.5
+  leakage_penalty_weight: 1.0
 
 agent:
   hidden_dim: 128
@@ -31,6 +31,9 @@ training:
   noise_scale: 0.1
   noise_decay: 0.9999
   min_noise: 0.01
+  reset_noise_on_phase2: true
+  phase_transition_buffer: "flush"
+  cic_eval_every: 1000
 
 experiment:
   seed: 42

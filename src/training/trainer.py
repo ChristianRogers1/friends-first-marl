@@ -5,6 +5,18 @@ Phase 1 (cooperative): Agents train in isolation on the referential
     communication task. No adversary, private messages.
 Phase 2 (adversarial): Eavesdropper introduced, public channel,
     all agents train simultaneously.
+
+Key design decisions (v2):
+  - Pretraining and Phase 2 durations are specified independently
+    (``pretraining_episodes`` and ``phase2_episodes``) so that changing
+    the amount of pretraining does not alter the evaluation window.
+  - Exploration noise is reset to its initial value at the Phase 2
+    boundary so both conditions get an equal exploration budget.
+  - The replay buffer supports three phase-transition strategies
+    (``none``, ``flush``, ``label``) to control whether Phase 1
+    experience contaminates Phase 2 training.
+  - CIC is computed periodically during training (controlled by
+    ``cic_eval_every``) and logged to TensorBoard.
 """
 
 import os
@@ -16,6 +28,83 @@ from torch.utils.tensorboard import SummaryWriter
 from ..environments.adversarial_crypto import AdversarialCryptoEnv
 from ..agents.maddpg import MADDPGAgent
 from ..utils.replay_buffer import ReplayBuffer
+
+
+def _quick_cic(
+    env: AdversarialCryptoEnv,
+    agents: dict[str, MADDPGAgent],
+    config: dict,
+    num_episodes: int = 100,
+    num_counterfactuals: int = 5,
+) -> float:
+    """Lightweight CIC estimate for periodic logging.
+
+    Uses fewer episodes and counterfactuals than the full post-hoc
+    evaluation to keep the cost manageable during training.
+    """
+    vocab_size = config["env"]["vocab_size"]
+    msg_length = config["env"]["msg_length"]
+
+    prev_phase = env.adversary_active
+    env.set_phase(2)
+    for agent in agents.values():
+        agent.eval_mode()
+
+    cic_values = []
+    for _ in range(num_episodes):
+        obs = env.reset()
+        speaker_obs = obs["speaker"]
+
+        speaker_action = agents["speaker"].select_action(
+            speaker_obs, explore=False
+        )
+        actual_msg = TwoPhaseTrainer._onehot_to_discrete(
+            speaker_action, vocab_size, msg_length
+        )
+        post_obs = env.step_speaker(actual_msg)
+        listener_obs_actual = post_obs["listener"]
+
+        with torch.no_grad():
+            obs_t = torch.FloatTensor(listener_obs_actual).unsqueeze(0)
+            actual_dist = (
+                agents["listener"]
+                .actor(obs_t.to(agents["listener"].device))
+                .cpu()
+                .numpy()
+                .flatten()
+            )
+
+        kls = []
+        for _ in range(num_counterfactuals):
+            cf_msg = np.random.randint(0, vocab_size, size=msg_length)
+            cf_post = env.step_speaker(cf_msg)
+            cf_obs = cf_post["listener"]
+            with torch.no_grad():
+                cf_t = torch.FloatTensor(cf_obs).unsqueeze(0)
+                cf_dist = (
+                    agents["listener"]
+                    .actor(cf_t.to(agents["listener"].device))
+                    .cpu()
+                    .numpy()
+                    .flatten()
+                )
+            kls.append(_kl_div(actual_dist, cf_dist))
+        cic_values.append(np.mean(kls))
+
+    # Restore previous phase
+    env.set_phase(2 if prev_phase else 1)
+    for agent in agents.values():
+        agent.train_mode()
+
+    return float(np.mean(cic_values))
+
+
+def _kl_div(p: np.ndarray, q: np.ndarray, eps: float = 1e-10) -> float:
+    p = np.clip(p, eps, 1.0)
+    q = np.clip(q, eps, 1.0)
+    p = p / p.sum()
+    q = q / q.sum()
+    return float(np.sum(p * np.log(p / q)))
 
 
 class TwoPhaseTrainer:
@@ -64,18 +153,45 @@ class TwoPhaseTrainer:
                 device=self.device,
             )
 
-        # Replay buffer
-        self.buffer = ReplayBuffer(config["training"]["buffer_capacity"])
+        # Replay buffer (phase-aware)
+        phase_strategy = config["training"].get(
+            "phase_transition_buffer", "none"
+        )
+        self.buffer = ReplayBuffer(
+            config["training"]["buffer_capacity"],
+            phase_strategy=phase_strategy,
+        )
 
-        # Training state
-        self.total_episodes = config["training"]["total_episodes"]
-        pretraining_ratio = config["training"]["pretraining_ratio"]
-        self.phase1_episodes = int(self.total_episodes * pretraining_ratio)
-        self.phase2_episodes = self.total_episodes - self.phase1_episodes
+        # ---- Episode counts (decoupled) ----
+        training_cfg = config["training"]
 
-        self.noise_scale = config["training"]["noise_scale"]
-        self.noise_decay = config["training"]["noise_decay"]
-        self.min_noise = config["training"]["min_noise"]
+        # Support both the old ``pretraining_ratio`` / ``total_episodes``
+        # interface and the new decoupled ``pretraining_episodes`` /
+        # ``phase2_episodes`` interface.
+        if "pretraining_episodes" in training_cfg:
+            self.phase1_episodes = int(training_cfg["pretraining_episodes"])
+        else:
+            total = int(training_cfg["total_episodes"])
+            ratio = float(training_cfg.get("pretraining_ratio", 0.0))
+            self.phase1_episodes = int(total * ratio)
+
+        if "phase2_episodes" in training_cfg:
+            self.phase2_episodes = int(training_cfg["phase2_episodes"])
+        else:
+            total = int(training_cfg["total_episodes"])
+            self.phase2_episodes = total - self.phase1_episodes
+
+        # Noise schedule
+        self.noise_initial = training_cfg["noise_scale"]
+        self.noise_scale = self.noise_initial
+        self.noise_decay = training_cfg["noise_decay"]
+        self.min_noise = training_cfg["min_noise"]
+        self.reset_noise_on_phase2 = training_cfg.get(
+            "reset_noise_on_phase2", True
+        )
+
+        # CIC tracking
+        self.cic_eval_every = training_cfg.get("cic_eval_every", 0)
 
     def _collect_episode(self, phase: int) -> dict:
         """Run one episode and store the transition in the replay buffer.
@@ -190,7 +306,12 @@ class TwoPhaseTrainer:
         if len(self.buffer) < batch_size:
             return
 
-        batch = self.buffer.sample(batch_size)
+        # When using "label" strategy, only sample from the current phase
+        sample_phase = phase if self.buffer.phase_strategy == "label" else None
+        batch = self.buffer.sample(batch_size, phase=sample_phase)
+
+        if len(batch) < batch_size:
+            return
 
         # Prepare batched tensors
         agent_names = ["speaker", "listener"]
@@ -274,12 +395,14 @@ class TwoPhaseTrainer:
             # Soft update targets
             agent.soft_update()
 
-    def train(self, seed: int | None = None, log_suffix: str = ""):
+    def train(self, seed: int | None = None, log_suffix: str = "",
+              quiet: bool = False):
         """Run the full two-phase training pipeline.
 
         Args:
             seed: Random seed for reproducibility.
             log_suffix: Suffix for log directory name.
+            quiet: If True, suppress tqdm progress bar (for parallel runs).
 
         Returns:
             Dictionary with training history.
@@ -313,9 +436,25 @@ class TwoPhaseTrainer:
         eval_every = self.config["training"]["eval_every"]
         checkpoint_every = self.config["training"]["checkpoint_every"]
 
-        pbar = tqdm(range(total_ep), desc="Training")
+        # Reset noise to initial value
+        self.noise_scale = self.noise_initial
+
+        # Notify buffer of initial phase
+        initial_phase = 1 if self.phase1_episodes > 0 else 2
+        self.buffer.notify_phase(initial_phase)
+
+        pbar = tqdm(range(total_ep), desc="Training", disable=quiet)
         for ep in pbar:
             phase = 1 if ep < self.phase1_episodes else 2
+
+            # ---- Phase transition handling ----
+            if ep == self.phase1_episodes and self.phase1_episodes > 0:
+                # Notify buffer of phase change (may flush)
+                self.buffer.notify_phase(2)
+
+                # Reset noise so Phase 2 starts with full exploration
+                if self.reset_noise_on_phase2:
+                    self.noise_scale = self.noise_initial
 
             # Set training mode
             for agent in self.agents.values():
@@ -358,9 +497,33 @@ class TwoPhaseTrainer:
                     adversary=f"{eval_info['adversary_accuracy']:.3f}",
                 )
 
+            # Periodic CIC evaluation
+            if self.cic_eval_every > 0 and ep % self.cic_eval_every == 0 and ep > 0:
+                cic_val = _quick_cic(
+                    self.env, self.agents, self.config,
+                    num_episodes=100,
+                    num_counterfactuals=5,
+                )
+                writer.add_scalar("eval/cic", cic_val, ep)
+                history.setdefault("cic", []).append(
+                    {"episode": ep, "cic": cic_val}
+                )
+
             # Checkpoint
             if ep % checkpoint_every == 0 and ep > 0:
                 self._save_checkpoint(checkpoint_dir, ep)
+
+        # Final CIC measurement
+        if self.cic_eval_every > 0:
+            cic_val = _quick_cic(
+                self.env, self.agents, self.config,
+                num_episodes=100,
+                num_counterfactuals=5,
+            )
+            writer.add_scalar("eval/cic", cic_val, total_ep)
+            history.setdefault("cic", []).append(
+                {"episode": total_ep, "cic": cic_val}
+            )
 
         # Final checkpoint
         self._save_checkpoint(checkpoint_dir, total_ep)

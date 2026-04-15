@@ -23,6 +23,7 @@ runs/
 checkpoints/
 logs/
 results/
+slurmout/
 
 # OS
 .DS_Store

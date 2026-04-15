@@ -20,43 +20,22 @@ agent:
   gumbel_temperature: 1.0 # Gumbel-Softmax temperature
 
 training:
-  # ---- Episode counts ----
-  # New decoupled interface (preferred): set each phase independently.
-  # pretraining_episodes: 5000
-  # phase2_episodes: 50000
-  # Legacy interface: total_episodes + pretraining_ratio.  Used when
-  # pretraining_episodes / phase2_episodes are absent.
   total_episodes: 50000
   pretraining_ratio: 0.25  # Fraction of episodes for cooperative pretraining
-
   batch_size: 256
   buffer_capacity: 100000
   update_every: 4          # Update networks every N episodes
   eval_every: 500          # Evaluate every N episodes
   eval_episodes: 100       # Episodes per evaluation
   checkpoint_every: 5000   # Checkpoint every N episodes
-
-  # ---- Exploration noise ----
   noise_scale: 0.1         # Exploration noise scale
   noise_decay: 0.9999      # Noise decay per episode
   min_noise: 0.01          # Minimum noise
-  reset_noise_on_phase2: true  # Reset noise to initial value at Phase 2 start
-
-  # ---- Replay buffer phase-transition strategy ----
-  # "none"  : shared buffer, no distinction between phases
-  # "flush" : clear buffer when transitioning to Phase 2
-  # "label" : tag transitions with phase, sample only from current phase
-  phase_transition_buffer: "flush"
-
-  # ---- Periodic CIC tracking ----
-  # Set to 0 to disable.  When > 0, a lightweight CIC estimate is
-  # computed every this many episodes and logged to TensorBoard.
-  cic_eval_every: 1000
 
 experiment:
   seed: 42
   num_seeds: 5             # Seeds for screening stage
-  device: "cuda"            # Use "cuda" if GPU available
+  device: "cpu"            # Use "cuda" if GPU available
   log_dir: "runs"
   checkpoint_dir: "checkpoints"
   results_dir: "results"
