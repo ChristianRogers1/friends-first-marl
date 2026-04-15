@@ -85,8 +85,7 @@ The **Gumbel-Softmax** relaxation enables gradient-based optimization of discret
 ## Project Structure
 
 ```
-CS6955-Dev-Repo/
-├── CS_6955_Project_Report___Rogers_C__Jensen_N.pdf
+CS6955-Project/
 ├── pyproject.toml
 ├── requirements.txt
 ├── configs/
@@ -110,10 +109,16 @@ CS6955-Dev-Repo/
 │   └── utils/
 │       ├── config.py               # YAML config loader with defaults
 │       └── replay_buffer.py        # Experience replay buffer
-└── tests/
-    ├── test_environment.py         # 9 environment tests
-    ├── test_agents.py              # 9 agent/network tests
-    └── test_training.py            # 3 training pipeline tests
+├── analysis/
+│   ├── analyze_results.py          # Does the main analysis for the paper
+│   └── attractor_analysis.py       # Verifies that the results are unimodal
+├── tests/
+│   ├── test_environment.py         # 9 environment tests
+│   ├── test_agents.py              # 9 agent/network tests
+│   └── test_training.py            # 3 training pipeline tests
+└── slurm/
+    ├── run_pipeline.sh             # Runs the full screen-validate pipeline on the U of U CHPC
+    └── train_single.sh             # Trains a single environment/seed and outputs results on the U of U CHPC
 ```
 
 ---
