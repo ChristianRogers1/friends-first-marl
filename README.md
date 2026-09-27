@@ -1,11 +1,6 @@
-# Cooperative Pretraining for Robust Emergent Communication Under Adversarial Pressure
-
-**CS 6955 - Advanced AI, Spring 2026**
+# Friends First: Cooperative Pretraining for Robust Emergent Communication Under Adversarial Pressure
 
 Christian A. Rogers (Christian.Rogers@utah.edu) and Nathan Jensen (u1493643@utah.edu)
-
-Kahlert School of Computer Science, University of Utah
-
 ---
 
 ## Overview
@@ -16,11 +11,11 @@ This project investigates whether a **cooperative pretraining stage** can improv
 
 ### Hypotheses
 
-1. **H1 -- Task Performance:** Cooperatively pretrained agents will achieve higher listener accuracy than simultaneously trained agents when deployed in an adversarial environment with public communication.
+1. **H1 - Task Performance:** Cooperatively pretrained agents will achieve higher listener accuracy than simultaneously trained agents when deployed in an adversarial environment with public communication.
 
-2. **H2 -- Communication Robustness:** Communication protocols established during cooperative pretraining will exhibit graceful degradation under adversarial pressure, rather than the protocol collapse observed in simultaneously trained agents. Measured via Causal Influence of Communication (CIC).
+2. **H2 - Communication Robustness:** Communication protocols established during cooperative pretraining will exhibit graceful degradation under adversarial pressure, rather than the protocol collapse observed in simultaneously trained agents. Measured via Causal Influence of Communication (CIC).
 
-3. **H3 -- Information Leakage:** Pretrained cooperative agents will leak less actionable information to adversarial eavesdroppers, as measured by eavesdropper accuracy and the leakage ratio.
+3. **H3 - Information Leakage:** Pretrained cooperative agents will leak less actionable information to adversarial eavesdroppers, as measured by eavesdropper accuracy and the leakage ratio.
 
 ---
 
@@ -85,7 +80,7 @@ The **Gumbel-Softmax** relaxation enables gradient-based optimization of discret
 ## Project Structure
 
 ```
-CS6955-Project/
+Friends-First-Marl/
 ├── pyproject.toml
 ├── requirements.txt
 ├── configs/
@@ -133,19 +128,7 @@ CS6955-Project/
 ### Setup
 
 ```bash
-# Clone the repository
-git clone https://github.com/ChristianRogers1/CS6955-Dev-Repo.git
-cd CS6955-Dev-Repo
-
-# Create a virtual environment (recommended)
-python -m venv venv
-source venv/bin/activate  # Linux/macOS
-# venv\Scripts\activate   # Windows
-
-# Install dependencies
 pip install -r requirements.txt
-
-# Verify installation
 python -m pytest tests/ -v
 ```
 
@@ -283,15 +266,15 @@ All configuration is managed through YAML files in `configs/`. Any parameter can
 
 ## Evaluation Metrics
 
-### H1 -- Task Performance
+### H1 - Task Performance
 
 Proportion of evaluation episodes where the listener correctly identifies the target. Reported with 95% confidence intervals and Cohen's d effect size comparing pretrained vs. baseline.
 
-### H2 -- Causal Influence of Communication (CIC)
+### H2 - Causal Influence of Communication (CIC)
 
 Measures whether messages *causally influence* the listener's behavior using counterfactual message substitution (Lowe et al., 2019). For each episode, the speaker's actual message is replaced with random alternative messages and the KL divergence between the listener's resulting action distributions is computed. CIC > 0 confirms genuine communication rather than epiphenomenal correlation.
 
-### H3 -- Information Leakage
+### H3 - Information Leakage
 
 Two sub-metrics:
 - **Eavesdropper accuracy:** Fraction of target attributes the adversary correctly reconstructs from the public message.
@@ -329,6 +312,8 @@ Two sub-metrics:
 
 ---
 
-## License
+## Attribution
 
-This project was developed as coursework for CS 6955 and CS 5955 at the University of Utah.
+This project was originally developed as a final project for Spring 2026 - CS 6955, Advanced AI (crosslisted with CS 5955) at the University of Utah under the Kahlert School of Computing.
+
+We want to express our gratitude for the use of the University's Center for High Performance Computing resources, as this project could not have been completed without their GPU allocations.
