@@ -221,7 +221,7 @@ All configuration is managed through YAML files in `configs/`. Any parameter can
 | `vocab_size` | 10 | Size of the discrete communication vocabulary |
 | `msg_length` | 3 | Number of symbols per message |
 | `cooperative_reward_weight` | 1.0 | Scaling factor for listener accuracy reward |
-| `leakage_penalty_weight` | 0.5 | Scaling factor for adversary accuracy penalty |
+| `leakage_penalty_weight` | 1.0 | Scaling factor for adversary accuracy penalty |
 
 ### Agent Parameters
 
