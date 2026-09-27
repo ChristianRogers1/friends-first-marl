@@ -57,8 +57,6 @@ A custom multi-agent referential communication game inspired by PettingZoo's `si
 | Phase 1 (cooperative pretraining) | Absent | Private | Develop communication protocols |
 | Phase 2 (adversarial) | Active | Public | Maintain communication under eavesdropping |
 
-The transition between phases is controlled by the `pretraining_ratio` parameter. For example, with `pretraining_ratio = 0.25` and 50,000 total episodes, Phase 1 runs for 12,500 episodes and Phase 2 for 37,500.
-
 ---
 
 ## Agent Architecture
@@ -141,14 +139,14 @@ All 21 tests should pass, confirming the environment, agents, and training pipel
 ### Single Training Run
 
 ```bash
-# Train with default configuration (pretraining_ratio = 0.25)
+# Train with default configuration
 python scripts/train.py --config configs/default.yaml --seed 42
 
 # Train the baseline (no pretraining, ratio = 0.0)
 python scripts/train.py --config configs/baseline.yaml --seed 42
 
-# Override pretraining ratio from the command line
-python scripts/train.py --config configs/default.yaml --seed 42 --pretraining-ratio 0.5
+# Override pretraining episodes from the command line
+python scripts/train.py --config configs/default.yaml --seed 42 --pretraining_episodes 5000
 
 # Use GPU if available
 python scripts/train.py --config configs/default.yaml --seed 42 --device cuda
@@ -162,7 +160,7 @@ tensorboard --logdir runs/
 
 ### Screening Stage
 
-The screening stage trains agents across multiple pretraining ratios (0.1, 0.25, 0.5, 0.75) with 5 seeds each to identify the best configuration:
+The screening stage trains agents across multiple pretraining episode numbers with 5 seeds each to identify the best configuration:
 
 ```bash
 python scripts/run_screening.py --config configs/screening.yaml
@@ -172,12 +170,12 @@ This produces `results/screening/screening_results.json` with per-ratio performa
 
 ### Confirmation Stage
 
-After selecting the best pretraining ratio from screening, run the confirmation stage with 12 seeds for both the selected configuration and the baseline:
+After selecting the best pretraining size from screening, run the confirmation stage with 12 seeds for both the selected configuration and the baseline:
 
 ```bash
-# Pretrained agents (replace 0.25 with the selected ratio)
+# Pretrained agents (5000 episodes, for example)
 for seed in $(seq 0 11); do
-    python scripts/train.py --config configs/default.yaml --seed $seed --pretraining-ratio 0.25
+    python scripts/train.py --config configs/default.yaml --seed $seed --pretraining_episodes 5000
 done
 
 # Baseline agents (no pretraining)
@@ -239,8 +237,8 @@ All configuration is managed through YAML files in `configs/`. Any parameter can
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `total_episodes` | 50,000 | Total training episodes across both phases |
-| `pretraining_ratio` | 0.25 | Fraction of episodes for cooperative pretraining (Phase 1) |
+| `pretraining_episodes` | 5,000 | Number of cooperative protected pretraining episodes |
+| `phase2_episodes` | 100,000 | Number of competitive episodes |
 | `batch_size` | 256 | Minibatch size for network updates |
 | `buffer_capacity` | 100,000 | Replay buffer capacity |
 | `update_every` | 4 | Update networks every N episodes |
